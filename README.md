@@ -69,6 +69,8 @@ Los clientes pueden registrarse desde la pantalla de inicio o ser creados por el
 2. Abre el archivo `index.html` en tu navegador (doble clic)
 3. No requiere instalación ni servidor
 
+---
+
 ## ✍️ Autores
 
 - **Keiner Cano Villa**
