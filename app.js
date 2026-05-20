@@ -1,483 +1,645 @@
-/* ============================================================
-   SISTEMA CANINO — Lógica de la aplicación
-   Teoría General de Sistemas · ITM · 2026
-   ============================================================ */
-
-// ─────────────────────────────────────────────────────────────
-//  USUARIOS (credenciales hardcodeadas)
-// ─────────────────────────────────────────────────────────────
-const USUARIOS = [
-  { id: "admin", password: "1234" }
-];
+// ═══════════════════════════════════════════════════════════
+//  Sistema Canino · app.js
+// ═══════════════════════════════════════════════════════════
 
 const MAX_INTENTOS = 3;
 let loginAttempts = 0;
-let currentUser   = null;
+let currentUser   = null;   // { id, rol, cliente_id }
 
-// ─────────────────────────────────────────────────────────────
-//  PERSISTENCIA — LocalStorage
-// ─────────────────────────────────────────────────────────────
-function getClientes() { return JSON.parse(localStorage.getItem('sc_clientes') || '[]'); }
-function getCaninos()  { return JSON.parse(localStorage.getItem('sc_caninos')  || '[]'); }
-function setClientes(d){ localStorage.setItem('sc_clientes', JSON.stringify(d)); }
-function setCaninos(d) { localStorage.setItem('sc_caninos',  JSON.stringify(d)); }
+// ── localStorage helpers ─────────────────────────────────
+const USUARIOS_DEFAULT = [{ id: "admin", password: "1234", rol: "admin", cliente_id: null }];
 
-// Genera IDs tipo C001, P002, etc.
+function getUsuarios()  { return JSON.parse(localStorage.getItem("usuarios")  || JSON.stringify(USUARIOS_DEFAULT)); }
+function getClientes()  { return JSON.parse(localStorage.getItem("clientes")  || "[]"); }
+function getCaninos()   { return JSON.parse(localStorage.getItem("caninos")   || "[]"); }
+function getCitas()     { return JSON.parse(localStorage.getItem("citas")     || "[]"); }
+function setUsuarios(d) { localStorage.setItem("usuarios",  JSON.stringify(d)); }
+function setClientes(d) { localStorage.setItem("clientes",  JSON.stringify(d)); }
+function setCaninos(d)  { localStorage.setItem("caninos",   JSON.stringify(d)); }
+function setCitas(d)    { localStorage.setItem("citas",     JSON.stringify(d)); }
+
+// ── Generador de IDs ─────────────────────────────────────
 function genId(prefix, arr) {
-  return prefix + String(arr.length + 1).padStart(3, '0');
+  const nums = arr.map(x => parseInt((x.id || "").slice(prefix.length))).filter(n => !isNaN(n));
+  return prefix + String((nums.length ? Math.max(...nums) : 0) + 1).padStart(3, "0");
+}
+function hoy() { return new Date().toISOString().split("T")[0]; }
+
+// ── Flash messages ───────────────────────────────────────
+function flash(msg, type = "success") {
+  const c = document.getElementById("flash-container");
+  if (!c) return;
+  const d = document.createElement("div");
+  d.className = "flash flash-" + type;
+  d.textContent = msg;
+  c.appendChild(d);
+  setTimeout(() => d.remove(), 4000);
 }
 
-// Fecha de hoy en formato local
-function today() {
-  return new Date().toLocaleDateString('es-CO', { year:'numeric', month:'2-digit', day:'2-digit' });
+// ── Error dentro de modal ────────────────────────────────
+function modalError(id, msg) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = msg ? "block" : "none";
 }
 
-// ─────────────────────────────────────────────────────────────
-//  MÓDULO 1: INICIO DE SESIÓN
-// ─────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════
+//  AUTO-REGISTRO
+// ════════════════════════════════════════════════════════
+function toggleRegistro(show) {
+  document.getElementById("login-card").style.display    = show ? "none"  : "block";
+  document.getElementById("registro-card").style.display = show ? "block" : "none";
+  document.getElementById("registro-error").classList.remove("show");
+}
+
+function registrarse() {
+  const campos = ["reg-nombre","reg-cedula","reg-telefono","reg-email","reg-direccion"];
+  const vals   = campos.map(id => document.getElementById(id).value.trim());
+  const usuId  = document.getElementById("reg-usuario").value.trim();
+  const usuPass= document.getElementById("reg-password").value.trim();
+  const errEl  = document.getElementById("registro-error");
+
+  if (vals.some(v => !v) || !usuId || !usuPass) {
+    errEl.textContent = "Todos los campos son obligatorios.";
+    errEl.classList.add("show"); return;
+  }
+  const usuarios = getUsuarios();
+  if (usuarios.find(u => u.id === usuId)) {
+    errEl.textContent = "Ese nombre de usuario ya existe. Elige otro.";
+    errEl.classList.add("show"); return;
+  }
+
+  const lista     = getClientes();
+  const clienteId = genId("C", lista);
+  lista.push({ id: clienteId, nombre: vals[0], cedula: vals[1],
+    telefono: vals[2], email: vals[3], direccion: vals[4], fecha_registro: hoy() });
+  usuarios.push({ id: usuId, password: usuPass, rol: "cliente", cliente_id: clienteId });
+  setClientes(lista);
+  setUsuarios(usuarios);
+
+  // Auto-login
+  currentUser = { id: usuId, rol: "cliente", cliente_id: clienteId };
+  document.getElementById("login-screen").style.display = "none";
+  document.getElementById("app-screen").classList.add("show");
+  document.getElementById("current-user").textContent = usuId;
+  configurarSidebar();
+  showPage("mis-caninos");
+  flash("Bienvenido/a " + vals[0] + ". Tu cuenta fue creada exitosamente.");
+}
+
+// ════════════════════════════════════════════════════════
+//  LOGIN
+// ════════════════════════════════════════════════════════
+function updateAttemptsDots() {
+  const bar  = document.getElementById("attempts-bar");
+  const dots = bar.querySelectorAll(".attempt-dot");
+  dots.forEach((d, i) => d.classList.toggle("used", i < loginAttempts));
+  bar.style.display = loginAttempts > 0 ? "flex" : "none";
+}
+
 function doLogin() {
-  const id   = document.getElementById('login-id').value.trim();
-  const pass = document.getElementById('login-pass').value.trim();
-  const bar  = document.getElementById('attempts-bar');
+  const userId = document.getElementById("login-user").value.trim();
+  const pass   = document.getElementById("login-pass").value.trim();
+  const errEl  = document.getElementById("login-error");
+  if (loginAttempts >= MAX_INTENTOS) return;
 
-  // Verificar que el ID exista
-  const user = USUARIOS.find(u => u.id === id);
-  if (!user) {
-    bar.className = 'attempts-bar show';
-    bar.textContent = '❌ ID de usuario no encontrado.';
+  const usuarios = getUsuarios();
+  const user     = usuarios.find(u => u.id === userId);
+
+  if (!user || user.password !== pass) {
+    loginAttempts++;
+    updateAttemptsDots();
+    const restantes = MAX_INTENTOS - loginAttempts;
+    if (restantes <= 0) {
+      errEl.textContent = "Cuenta bloqueada. Demasiados intentos fallidos.";
+      document.getElementById("login-user").disabled = true;
+      document.getElementById("login-pass").disabled = true;
+      document.getElementById("login-btn").disabled  = true;
+    } else {
+      errEl.textContent = !user
+        ? "Usuario no encontrado. Intentos restantes: " + restantes
+        : "Contrasena incorrecta. Intentos restantes: " + restantes;
+    }
+    errEl.classList.add("show");
     return;
   }
 
-  // Verificar contraseña
-  if (pass === user.password) {
-    // Login exitoso
-    currentUser  = id;
-    loginAttempts = 0;
-    bar.className = 'attempts-bar';
-    document.getElementById('login-pass').value = '';
-    document.getElementById('login-screen').classList.remove('active');
-    document.getElementById('app-screen').classList.add('active');
-    document.getElementById('user-display').textContent = id;
-    document.getElementById('user-avatar').textContent  = id[0].toUpperCase();
-    updateStats();
-    renderConsultas();
-
-  } else {
-    // Contraseña incorrecta
-    loginAttempts++;
-    const restantes = MAX_INTENTOS - loginAttempts;
-    bar.className   = 'attempts-bar show';
-
-    if (restantes > 0) {
-      bar.textContent = `⚠️ Contraseña incorrecta. Intentos restantes: ${restantes}`;
-    } else {
-      bar.textContent = '❌ Ha agotado los 3 intentos. Recargue la página para intentar de nuevo.';
-      document.getElementById('login-id').disabled   = true;
-      document.getElementById('login-pass').disabled = true;
-    }
-  }
+  currentUser = { id: user.id, rol: user.rol, cliente_id: user.cliente_id };
+  document.getElementById("login-screen").style.display = "none";
+  document.getElementById("app-screen").classList.add("show");
+  document.getElementById("current-user").textContent = currentUser.id;
+  errEl.classList.remove("show");
+  configurarSidebar();
+  showPage(currentUser.rol === "admin" ? "dashboard" : "mis-caninos");
 }
 
 function doLogout() {
   currentUser   = null;
   loginAttempts = 0;
-  document.getElementById('app-screen').classList.remove('active');
-  document.getElementById('login-screen').classList.add('active');
-  document.getElementById('login-id').value    = '';
-  document.getElementById('login-pass').value  = '';
-  document.getElementById('login-id').disabled   = false;
-  document.getElementById('login-pass').disabled = false;
-  document.getElementById('attempts-bar').className = 'attempts-bar';
-  showPage('dashboard');
-}
-
-// ─────────────────────────────────────────────────────────────
-//  NAVEGACIÓN
-// ─────────────────────────────────────────────────────────────
-function showPage(page) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-' + page).classList.add('active');
-  document.getElementById('nav-'  + page).classList.add('active');
-
-  if (page === 'clientes')  renderClientes();
-  if (page === 'caninos')   renderCaninos();
-  if (page === 'consultas') renderConsultas();
-  if (page === 'dashboard') updateStats();
-}
-
-function switchTab(id, el) {
-  document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById(id).style.display = 'block';
-  el.classList.add('active');
-  renderConsultas();
-}
-
-// ─────────────────────────────────────────────────────────────
-//  MODALES
-// ─────────────────────────────────────────────────────────────
-function openModal(id)  { document.getElementById(id).classList.add('show'); }
-function closeModal(id) { document.getElementById(id).classList.remove('show'); }
-
-function openModalCliente() {
-  ['c-nombre','c-apellido','c-telefono','c-email','c-direccion']
-    .forEach(f => document.getElementById(f).value = '');
-  showAlert('alert-cliente', '', '');
-  openModal('modal-cliente');
-}
-
-function openModalCanino() {
-  // Cargar clientes en el select
-  const sel = document.getElementById('p-cliente');
-  sel.innerHTML = '<option value="">— Seleccione un cliente —</option>';
-  getClientes().forEach(c => {
-    const o = document.createElement('option');
-    o.value = c.id;
-    o.textContent = `${c.id} · ${c.nombre} ${c.apellido}`;
-    sel.appendChild(o);
+  document.getElementById("login-screen").style.display = "flex";
+  document.getElementById("app-screen").classList.remove("show");
+  // Siempre volver al formulario de login, no al de registro
+  toggleRegistro(false);
+  ["login-user","login-pass"].forEach(id => {
+    document.getElementById(id).value    = "";
+    document.getElementById(id).disabled = false;
   });
-  ['p-nombre','p-raza','p-edad','p-peso','p-color','p-obs']
-    .forEach(f => document.getElementById(f).value = '');
-  showAlert('alert-canino', '', '');
-  openModal('modal-canino');
+  document.getElementById("login-btn").disabled = false;
+  document.getElementById("login-error").classList.remove("show");
+  updateAttemptsDots();
 }
 
-// Cerrar modal al hacer clic fuera
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-  overlay.addEventListener('click', e => {
-    if (e.target === overlay) overlay.classList.remove('show');
+function configurarSidebar() {
+  const isAdmin = currentUser.rol === "admin";
+  document.getElementById("nav-admin").style.display   = isAdmin ? "block" : "none";
+  document.getElementById("nav-cliente").style.display = isAdmin ? "none"  : "block";
+  if (isAdmin) actualizarBadgeCitas();
+}
+
+function actualizarBadgeCitas() {
+  const pendientes = getCitas().filter(c => c.estado === "pendiente").length;
+  const badge = document.getElementById("badge-citas");
+  if (badge) badge.style.display = pendientes > 0 ? "inline" : "none";
+}
+
+// ── Migración: corrige IDs duplicados en citas ya guardadas ──
+function migrarIdsDuplicados() {
+  const citas = getCitas();
+  const vistos = {};
+  let cambio = false;
+  citas.forEach(c => {
+    if (vistos[c.id]) {
+      c.id = "CT" + Date.now() + Math.floor(Math.random() * 1000);
+      cambio = true;
+    } else {
+      vistos[c.id] = true;
+    }
   });
+  if (cambio) setCitas(citas);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  migrarIdsDuplicados();   // repara duplicados al cargar
+  ["login-user","login-pass"].forEach(id =>
+    document.getElementById(id).addEventListener("keydown", e => {
+      if (e.key === "Enter") doLogin();
+    })
+  );
+  updateAttemptsDots();
 });
 
-// ─────────────────────────────────────────────────────────────
-//  MÓDULO 2: REGISTRAR CLIENTE
-// ─────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════
+//  NAVEGACION
+// ════════════════════════════════════════════════════════
+function showPage(page) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+  document.getElementById("page-" + page).classList.add("active");
+  const navEl = document.querySelector('[data-page="' + page + '"]');
+  if (navEl) navEl.classList.add("active");
+  const renders = {
+    "dashboard":   renderDashboard,
+    "clientes":    renderClientes,
+    "caninos":     renderCaninos,
+    "consultas":   renderConsultas,
+    "citas-admin": renderCitasAdmin,
+    "mis-caninos": renderMisCaninos,
+    "mis-citas":   renderMisCitas,
+    "mi-perfil":   renderMiPerfil,
+  };
+  if (renders[page]) renders[page]();
+}
+
+// ════════════════════════════════════════════════════════
+//  DASHBOARD (admin)
+// ════════════════════════════════════════════════════════
+function renderDashboard() {
+  const clientes = getClientes();
+  const caninos  = getCaninos();
+  document.getElementById("stat-clientes").textContent = clientes.length;
+  document.getElementById("stat-caninos").textContent  = caninos.length;
+  document.getElementById("stat-razas").textContent    = new Set(caninos.map(c => c.raza)).size;
+  document.getElementById("stat-ultimo").textContent   = clientes.length ? clientes[clientes.length-1].nombre : "—";
+}
+
+// ════════════════════════════════════════════════════════
+//  CLIENTES (admin)
+// ════════════════════════════════════════════════════════
 function guardarCliente() {
-  const nombre   = document.getElementById('c-nombre').value.trim();
-  const apellido = document.getElementById('c-apellido').value.trim();
+  const campos = ["cli-nombre","cli-cedula","cli-telefono","cli-email","cli-direccion"];
+  const vals   = campos.map(id => document.getElementById(id).value.trim());
+  const usuId  = document.getElementById("cli-usuario").value.trim();
+  const usuPass= document.getElementById("cli-password").value.trim();
 
-  if (!nombre || !apellido) {
-    showAlert('alert-cliente', 'error', '⚠️ El nombre y apellido son obligatorios.');
-    return;
+  if (vals.some(v => !v) || !usuId || !usuPass) {
+    modalError("modal-cliente-error", "Todos los campos son obligatorios."); return;
+  }
+  const usuarios = getUsuarios();
+  if (usuarios.find(u => u.id === usuId)) {
+    modalError("modal-cliente-error", "Ese usuario ya existe. Elige otro."); return;
   }
 
-  const clientes = getClientes();
-  const cliente  = {
-    id:             genId('C', clientes),
-    nombre,
-    apellido,
-    telefono:       document.getElementById('c-telefono').value.trim(),
-    email:          document.getElementById('c-email').value.trim(),
-    direccion:      document.getElementById('c-direccion').value.trim(),
-    fecha_registro: today()
-  };
+  const lista      = getClientes();
+  const clienteId  = genId("C", lista);
+  lista.push({ id: clienteId, nombre: vals[0], cedula: vals[1],
+    telefono: vals[2], email: vals[3], direccion: vals[4], fecha_registro: hoy() });
+  usuarios.push({ id: usuId, password: usuPass, rol: "cliente", cliente_id: clienteId });
+  setClientes(lista);
+  setUsuarios(usuarios);
 
-  clientes.push(cliente);
-  setClientes(clientes);
-
-  showAlert('alert-cliente', 'success', `✅ Cliente registrado con ID: ${cliente.id}`);
-  setTimeout(() => { closeModal('modal-cliente'); renderClientes(); updateStats(); }, 1200);
+  [...campos,"cli-usuario","cli-password"].forEach(id => document.getElementById(id).value = "");
+  modalError("modal-cliente-error", "");
+  closeModal("modal-cliente");
+  flash("Cliente registrado. Usuario de acceso: " + usuId);
+  renderClientes();
+  renderDashboard();
 }
 
-function renderClientes() {
-  const q = (document.getElementById('search-cliente')?.value || '').toLowerCase();
-  const clientes = getClientes().filter(c =>
-    c.nombre.toLowerCase().includes(q) ||
-    c.apellido.toLowerCase().includes(q) ||
-    c.id.toLowerCase().includes(q)
-  );
-
-  const wrap = document.getElementById('tabla-clientes');
-  if (!wrap) return;
-
-  if (!clientes.length) {
-    wrap.innerHTML = `<div class="empty-state">
-      <div class="empty-icon">👤</div>
-      <p>No hay clientes registrados</p>
-    </div>`;
-    return;
-  }
-
-  wrap.innerHTML = `<table>
-    <thead><tr>
-      <th>ID</th><th>Nombre</th><th>Teléfono</th>
-      <th>Email</th><th>Dirección</th><th>Registro</th><th></th>
-    </tr></thead>
-    <tbody>
-      ${clientes.map(c => `
-        <tr>
-          <td><span class="badge badge-purple">${c.id}</span></td>
-          <td><strong>${c.nombre} ${c.apellido}</strong></td>
-          <td>${c.telefono || '—'}</td>
-          <td>${c.email    || '—'}</td>
-          <td>${c.direccion|| '—'}</td>
-          <td>${c.fecha_registro}</td>
-          <td>
-            <button class="btn btn-outline"
-              style="padding:5px 12px;font-size:12px"
-              onclick="verCaninosDeCliente('${c.id}')">
-              🐶 Ver caninos
-            </button>
-          </td>
-        </tr>`).join('')}
-    </tbody>
-  </table>`;
+function editarCliente(id) {
+  const c = getClientes().find(c => c.id === id);
+  if (!c) return;
+  ["id","nombre","cedula","telefono","email","direccion"].forEach(f =>
+    document.getElementById("edit-cli-" + f).value = c[f] || "");
+  openModal("modal-editar-cliente");
 }
 
-// Atajo para ver los caninos de un cliente desde la tabla
-function verCaninosDeCliente(cid) {
-  showPage('consultas');
-  document.getElementById('cons-cliente-id').value = cid;
-  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', i === 2));
-  document.querySelectorAll('.tab-content').forEach((t, i) => t.style.display = i === 2 ? 'block' : 'none');
-  buscarCaninoPorCliente();
+function guardarEdicionCliente() {
+  const id    = document.getElementById("edit-cli-id").value;
+  const lista = getClientes();
+  const idx   = lista.findIndex(c => c.id === id);
+  if (idx === -1) return;
+  ["nombre","cedula","telefono","email","direccion"].forEach(f => {
+    const v = document.getElementById("edit-cli-" + f).value.trim();
+    if (v) lista[idx][f] = v;
+  });
+  setClientes(lista);
+  closeModal("modal-editar-cliente");
+  flash("Cliente actualizado.");
+  renderClientes();
 }
 
-// ─────────────────────────────────────────────────────────────
-//  MÓDULO 3: REGISTRAR CANINO
-// ─────────────────────────────────────────────────────────────
+function eliminarCliente(id) {
+  if (!confirm("Eliminar cliente y sus caninos asociados?")) return;
+  setClientes(getClientes().filter(c => c.id !== id));
+  setCaninos(getCaninos().filter(c => c.cliente_id !== id));
+  setUsuarios(getUsuarios().filter(u => u.cliente_id !== id));
+  flash("Cliente eliminado.");
+  renderClientes();
+  renderDashboard();
+}
+
+function renderClientes(q) {
+  q = (q !== undefined ? q : document.getElementById("search-clientes").value).toLowerCase();
+  let lista = getClientes();
+  if (q) lista = lista.filter(c =>
+    c.nombre.toLowerCase().includes(q) || c.id.toLowerCase().includes(q) || c.telefono.toLowerCase().includes(q));
+  const tbody = document.getElementById("tabla-clientes");
+  tbody.innerHTML = !lista.length
+    ? '<tr><td colspan="8" class="empty-row">No hay clientes registrados.</td></tr>'
+    : lista.map(c =>
+        '<tr>' +
+        '<td><span class="badge badge-primary">' + c.id + '</span></td>' +
+        '<td>' + c.nombre + '</td><td>' + c.cedula + '</td><td>' + c.telefono + '</td>' +
+        '<td>' + c.email + '</td><td>' + c.direccion + '</td><td>' + c.fecha_registro + '</td>' +
+        '<td style="display:flex;gap:.4rem">' +
+          '<button class="btn btn-secondary btn-sm" onclick="editarCliente(\'' + c.id + '\')">Editar</button>' +
+          '<button class="btn btn-danger btn-sm" onclick="eliminarCliente(\'' + c.id + '\')">Eliminar</button>' +
+        '</td></tr>').join("");
+}
+
+// ════════════════════════════════════════════════════════
+//  CANINOS (admin)
+// ════════════════════════════════════════════════════════
+function abrirModalCanino() {
+  const sel = document.getElementById("can-cliente");
+  sel.innerHTML = '<option value="">— Seleccionar cliente —</option>' +
+    getClientes().map(c => '<option value="' + c.id + '">' + c.id + ' — ' + c.nombre + '</option>').join("");
+  openModal("modal-canino");
+}
+
 function guardarCanino() {
-  const clienteId = document.getElementById('p-cliente').value;
-  const nombre    = document.getElementById('p-nombre').value.trim();
-
-  if (!clienteId) { showAlert('alert-canino', 'error', '⚠️ Seleccione un cliente propietario.'); return; }
-  if (!nombre)    { showAlert('alert-canino', 'error', '⚠️ El nombre del canino es obligatorio.'); return; }
-
-  const caninos = getCaninos();
-  const canino  = {
-    id:             genId('P', caninos),
-    nombre,
-    raza:           document.getElementById('p-raza').value.trim(),
-    edad:           document.getElementById('p-edad').value.trim(),
-    peso:           document.getElementById('p-peso').value.trim(),
-    color:          document.getElementById('p-color').value.trim(),
-    servicio:       document.getElementById('p-servicio').value,
-    observaciones:  document.getElementById('p-obs').value.trim(),
-    cliente_id:     clienteId,
-    fecha_registro: today()
-  };
-
-  caninos.push(canino);
-  setCaninos(caninos);
-
-  showAlert('alert-canino', 'success', `✅ Canino '${nombre}' registrado con ID: ${canino.id}`);
-  setTimeout(() => { closeModal('modal-canino'); renderCaninos(); updateStats(); }, 1200);
+  const clienteId = document.getElementById("can-cliente").value.trim();
+  if (!getClientes().find(c => c.id === clienteId)) { flash("El cliente no existe.", "danger"); return; }
+  const campos = ["can-nombre","can-raza","can-edad","can-peso","can-color"];
+  const vals   = campos.map(id => document.getElementById(id).value.trim());
+  if (vals.some(v => !v)) { flash("Los campos * son obligatorios.", "danger"); return; }
+  const lista = getCaninos();
+  lista.push({ id: genId("P", lista), nombre: vals[0], raza: vals[1], edad: vals[2],
+    peso: vals[3], color: vals[4],
+    observaciones: document.getElementById("can-obs").value.trim(),
+    cliente_id: clienteId, fecha_registro: hoy() });
+  setCaninos(lista);
+  [...campos,"can-cliente","can-obs"].forEach(id => document.getElementById(id).value = "");
+  closeModal("modal-canino");
+  flash("Canino registrado.");
+  renderCaninos();
+  renderDashboard();
 }
 
-function renderCaninos() {
-  const q        = (document.getElementById('search-canino')?.value || '').toLowerCase();
-  const clientes = getClientes();
-  const caninos  = getCaninos().filter(p => {
-    const dueno = clientes.find(c => c.id === p.cliente_id);
-    const nombreDueno = dueno ? `${dueno.nombre} ${dueno.apellido}` : '';
-    return p.nombre.toLowerCase().includes(q) ||
-           (p.raza || '').toLowerCase().includes(q) ||
-           nombreDueno.toLowerCase().includes(q) ||
-           p.id.toLowerCase().includes(q);
+function editarCanino(id) {
+  const c = getCaninos().find(c => c.id === id);
+  if (!c) return;
+  ["id","nombre","raza","edad","peso","color"].forEach(f =>
+    document.getElementById("edit-can-" + f).value = c[f] || "");
+  document.getElementById("edit-can-obs").value = c.observaciones || "";
+  openModal("modal-editar-canino");
+}
+
+function guardarEdicionCanino() {
+  const id    = document.getElementById("edit-can-id").value;
+  const lista = getCaninos();
+  const idx   = lista.findIndex(c => c.id === id);
+  if (idx === -1) return;
+  ["nombre","raza","edad","peso","color"].forEach(f => {
+    const v = document.getElementById("edit-can-" + f).value.trim();
+    if (v) lista[idx][f] = v;
   });
-
-  const wrap = document.getElementById('tabla-caninos');
-  if (!wrap) return;
-
-  if (!caninos.length) {
-    wrap.innerHTML = `<div class="empty-state">
-      <div class="empty-icon">🐶</div>
-      <p>No hay caninos registrados</p>
-    </div>`;
-    return;
-  }
-
-  wrap.innerHTML = `<table>
-    <thead><tr>
-      <th>ID</th><th>Nombre</th><th>Raza</th><th>Edad</th>
-      <th>Peso</th><th>Color</th><th>Servicio</th><th>Propietario</th><th></th>
-    </tr></thead>
-    <tbody>
-      ${caninos.map(p => {
-        const c = clientes.find(x => x.id === p.cliente_id);
-        return `<tr>
-          <td><span class="badge badge-green">${p.id}</span></td>
-          <td><strong>${p.nombre}</strong></td>
-          <td>${p.raza  || '—'}</td>
-          <td>${p.edad  ? p.edad + ' años' : '—'}</td>
-          <td>${p.peso  ? p.peso + ' kg'   : '—'}</td>
-          <td>${p.color || '—'}</td>
-          <td>${p.servicio || '—'}</td>
-          <td>${c ? c.nombre + ' ' + c.apellido : p.cliente_id}</td>
-          <td>
-            <button class="btn btn-outline"
-              style="padding:5px 12px;font-size:12px"
-              onclick='verDetalleCanino(${JSON.stringify(p)})'>
-              👁 Ver
-            </button>
-          </td>
-        </tr>`;
-      }).join('')}
-    </tbody>
-  </table>`;
+  lista[idx].observaciones = document.getElementById("edit-can-obs").value.trim();
+  setCaninos(lista);
+  closeModal("modal-editar-canino");
+  flash("Canino actualizado.");
+  renderCaninos();
 }
 
-function verDetalleCanino(p) {
-  const clientes = getClientes();
-  const c = clientes.find(x => x.id === p.cliente_id);
-  document.getElementById('detalle-titulo').textContent = `🐶 ${p.nombre} (${p.id})`;
-  document.getElementById('detalle-body').innerHTML = `
-    <div class="ficha-item"><label>Raza</label><p>${p.raza  || '—'}</p></div>
-    <div class="ficha-item"><label>Edad</label><p>${p.edad  ? p.edad + ' años' : '—'}</p></div>
-    <div class="ficha-item"><label>Peso</label><p>${p.peso  ? p.peso + ' kg'   : '—'}</p></div>
-    <div class="ficha-item"><label>Color</label><p>${p.color || '—'}</p></div>
-    <div class="ficha-item"><label>Servicio</label><p>${p.servicio || '—'}</p></div>
-    <div class="ficha-item"><label>Fecha de registro</label><p>${p.fecha_registro}</p></div>
-    <div class="ficha-item full">
-      <label>Propietario</label>
-      <p>${c ? c.nombre + ' ' + c.apellido + ' (' + c.id + ') · ' + c.telefono : p.cliente_id}</p>
-    </div>
-    <div class="ficha-item full">
-      <label>Observaciones</label>
-      <p>${p.observaciones || 'Ninguna'}</p>
-    </div>
-  `;
-  openModal('modal-detalle');
+function eliminarCanino(id) {
+  if (!confirm("Eliminar este canino?")) return;
+  setCaninos(getCaninos().filter(c => c.id !== id));
+  flash("Canino eliminado.");
+  renderCaninos();
+  renderDashboard();
 }
 
-// ─────────────────────────────────────────────────────────────
-//  MÓDULO 4: CONSULTAS
-// ─────────────────────────────────────────────────────────────
-function renderConsultas() {
-  const clientes = getClientes();
-  const caninos  = getCaninos();
-
-  // Pestaña 1: todos los clientes
-  const tc = document.getElementById('cons-tabla-clientes');
-  if (tc) {
-    if (!clientes.length) {
-      tc.innerHTML = `<div class="empty-state"><div class="empty-icon">👤</div><p>No hay clientes registrados</p></div>`;
-    } else {
-      tc.innerHTML = `<table>
-        <thead><tr>
-          <th>ID</th><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Dirección</th><th>Registro</th>
-        </tr></thead>
-        <tbody>
-          ${clientes.map(c => `<tr>
-            <td><span class="badge badge-purple">${c.id}</span></td>
-            <td><strong>${c.nombre} ${c.apellido}</strong></td>
-            <td>${c.telefono  || '—'}</td>
-            <td>${c.email     || '—'}</td>
-            <td>${c.direccion || '—'}</td>
-            <td>${c.fecha_registro}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>`;
-    }
-  }
-
-  // Pestaña 2: todos los caninos
-  const tp = document.getElementById('cons-tabla-caninos');
-  if (tp) {
-    if (!caninos.length) {
-      tp.innerHTML = `<div class="empty-state"><div class="empty-icon">🐶</div><p>No hay caninos registrados</p></div>`;
-    } else {
-      tp.innerHTML = `<table>
-        <thead><tr>
-          <th>ID</th><th>Nombre</th><th>Raza</th><th>Edad</th><th>Peso</th><th>Servicio</th><th>Propietario</th>
-        </tr></thead>
-        <tbody>
-          ${caninos.map(p => {
-            const c = clientes.find(x => x.id === p.cliente_id);
-            return `<tr>
-              <td><span class="badge badge-green">${p.id}</span></td>
-              <td><strong>${p.nombre}</strong></td>
-              <td>${p.raza || '—'}</td>
-              <td>${p.edad ? p.edad + ' años' : '—'}</td>
-              <td>${p.peso ? p.peso + ' kg'   : '—'}</td>
-              <td>${p.servicio || '—'}</td>
-              <td>${c ? c.nombre + ' ' + c.apellido : p.cliente_id}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>`;
-    }
-  }
+function renderCaninos(q) {
+  q = (q !== undefined ? q : document.getElementById("search-caninos").value).toLowerCase();
+  const cmap = Object.fromEntries(getClientes().map(c => [c.id, c.nombre]));
+  let lista = getCaninos();
+  if (q) lista = lista.filter(c =>
+    c.nombre.toLowerCase().includes(q) || c.id.toLowerCase().includes(q) || c.raza.toLowerCase().includes(q));
+  const tbody = document.getElementById("tabla-caninos");
+  tbody.innerHTML = !lista.length
+    ? '<tr><td colspan="10" class="empty-row">No hay caninos registrados.</td></tr>'
+    : lista.map(c =>
+        '<tr>' +
+        '<td><span class="badge badge-success">' + c.id + '</span></td>' +
+        '<td>' + c.nombre + '</td><td>' + c.raza + '</td><td>' + c.edad + '</td>' +
+        '<td>' + c.peso + ' kg</td><td>' + c.color + '</td><td>' + (c.observaciones||"—") + '</td>' +
+        '<td><span class="badge badge-primary">' + c.cliente_id + '</span> ' + (cmap[c.cliente_id]||"—") + '</td>' +
+        '<td>' + c.fecha_registro + '</td>' +
+        '<td style="display:flex;gap:.4rem">' +
+          '<button class="btn btn-secondary btn-sm" onclick="editarCanino(\'' + c.id + '\')">Editar</button>' +
+          '<button class="btn btn-danger btn-sm" onclick="eliminarCanino(\'' + c.id + '\')">Eliminar</button>' +
+        '</td></tr>').join("");
 }
 
-// Pestaña 3: caninos por cliente (búsqueda)
+// ════════════════════════════════════════════════════════
+//  CONSULTAS (admin)
+// ════════════════════════════════════════════════════════
+function renderConsultas() { switchTab("tab-clientes"); }
+
+function switchTab(tabId) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  document.querySelector('[data-tab="' + tabId + '"]').classList.add("active");
+  document.getElementById(tabId).classList.add("active");
+  if (tabId === "tab-clientes") renderTabClientes();
+  if (tabId === "tab-caninos")  renderTabCaninos();
+}
+
+function renderTabClientes() {
+  const lista = getClientes();
+  document.getElementById("cons-tabla-clientes").innerHTML = !lista.length
+    ? '<tr><td colspan="7" class="empty-row">No hay clientes.</td></tr>'
+    : lista.map(c =>
+        '<tr><td><span class="badge badge-primary">' + c.id + '</span></td>' +
+        '<td>' + c.nombre + '</td><td>' + c.cedula + '</td><td>' + c.telefono + '</td>' +
+        '<td>' + c.email + '</td><td>' + c.direccion + '</td><td>' + c.fecha_registro + '</td></tr>').join("");
+}
+
+function renderTabCaninos() {
+  const cmap  = Object.fromEntries(getClientes().map(c => [c.id, c.nombre]));
+  const lista = getCaninos();
+  document.getElementById("cons-tabla-caninos").innerHTML = !lista.length
+    ? '<tr><td colspan="8" class="empty-row">No hay caninos.</td></tr>'
+    : lista.map(c =>
+        '<tr><td><span class="badge badge-success">' + c.id + '</span></td>' +
+        '<td>' + c.nombre + '</td><td>' + c.raza + '</td><td>' + c.edad + '</td>' +
+        '<td>' + c.peso + ' kg</td><td>' + c.color + '</td><td>' + (c.observaciones||"—") + '</td>' +
+        '<td><span class="badge badge-primary">' + c.cliente_id + '</span> ' + (cmap[c.cliente_id]||"—") + '</td></tr>').join("");
+}
+
 function buscarCaninoPorCliente() {
-  const q        = document.getElementById('cons-cliente-id').value.trim().toLowerCase();
-  const clientes = getClientes();
-  const caninos  = getCaninos();
-  const wrap     = document.getElementById('cons-tabla-por-cliente');
-  if (!q) { wrap.innerHTML = ''; return; }
+  const q    = document.getElementById("cons-buscar-cliente").value.trim().toLowerCase();
+  const cmap = Object.fromEntries(getClientes().map(c => [c.id, c.nombre]));
+  const res  = getCaninos().filter(c =>
+    c.cliente_id.toLowerCase().includes(q) || (cmap[c.cliente_id]||"").toLowerCase().includes(q));
+  document.getElementById("cons-resultado-info").textContent =
+    q ? res.length + ' canino(s) para "' + q + '"' : "";
+  document.getElementById("cons-tabla-por-cliente").innerHTML = !res.length
+    ? '<tr><td colspan="9" class="empty-row">' + (q ? "Sin resultados." : "Ingresa un ID o nombre.") + '</td></tr>'
+    : res.map(c =>
+        '<tr><td><span class="badge badge-success">' + c.id + '</span></td>' +
+        '<td>' + c.nombre + '</td><td>' + c.raza + '</td><td>' + c.edad + '</td>' +
+        '<td>' + c.peso + ' kg</td><td>' + c.color + '</td><td>' + (c.observaciones||"—") + '</td>' +
+        '<td><span class="badge badge-primary">' + c.cliente_id + '</span></td>' +
+        '<td>' + (cmap[c.cliente_id]||"—") + '</td></tr>').join("");
+}
 
-  const matches = clientes.filter(c =>
-    c.id.toLowerCase() === q ||
-    c.nombre.toLowerCase().includes(q) ||
-    c.apellido.toLowerCase().includes(q) ||
-    `${c.nombre} ${c.apellido}`.toLowerCase().includes(q)
-  );
+// ════════════════════════════════════════════════════════
+//  MIS CANINOS (cliente)
+// ════════════════════════════════════════════════════════
+function renderMisCaninos() {
+  const mis = getCaninos().filter(c => c.cliente_id === currentUser.cliente_id);
+  document.getElementById("tabla-mis-caninos").innerHTML = !mis.length
+    ? '<tr><td colspan="7" class="empty-row">No tienes caninos registrados aun.</td></tr>'
+    : mis.map(c =>
+        '<tr><td><span class="badge badge-success">' + c.id + '</span></td>' +
+        '<td>' + c.nombre + '</td><td>' + c.raza + '</td><td>' + c.edad + '</td>' +
+        '<td>' + c.peso + ' kg</td><td>' + c.color + '</td><td>' + (c.observaciones||"—") + '</td></tr>').join("");
+}
 
-  if (!matches.length) {
-    wrap.innerHTML = `<div class="empty-state">
-      <div class="empty-icon">🔍</div>
-      <p>No se encontró ningún cliente con ese criterio</p>
-    </div>`;
-    return;
-  }
+// ════════════════════════════════════════════════════════
+//  MI PERFIL (cliente)
+// ════════════════════════════════════════════════════════
+function renderMiPerfil() {
+  const c = getClientes().find(c => c.id === currentUser.cliente_id);
+  if (!c) return;
+  ["nombre","cedula","telefono","email","direccion"].forEach(f =>
+    document.getElementById("perfil-" + f).value = c[f] || "");
+}
 
-  let html = '';
-  matches.forEach(c => {
-    const caninosCliente = caninos.filter(p => p.cliente_id === c.id);
-    html += `<div style="margin-bottom:24px">
-      <p style="font-size:13px;font-weight:700;color:var(--gray-600);margin-bottom:10px">
-        👤 ${c.nombre} ${c.apellido}
-        <span class="badge badge-purple">${c.id}</span>
-        · ${c.telefono || ''}
-      </p>`;
-
-    if (!caninosCliente.length) {
-      html += `<p style="font-size:13px;color:var(--gray-400);padding:10px">
-        Este cliente no tiene caninos registrados.
-      </p>`;
-    } else {
-      html += `<table>
-        <thead><tr>
-          <th>ID</th><th>Nombre</th><th>Raza</th><th>Edad</th><th>Peso</th><th>Servicio</th>
-        </tr></thead>
-        <tbody>
-          ${caninosCliente.map(p => `<tr>
-            <td><span class="badge badge-green">${p.id}</span></td>
-            <td><strong>${p.nombre}</strong></td>
-            <td>${p.raza || '—'}</td>
-            <td>${p.edad ? p.edad + ' años' : '—'}</td>
-            <td>${p.peso ? p.peso + ' kg'   : '—'}</td>
-            <td>${p.servicio || '—'}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>`;
-    }
-    html += '</div>';
+function guardarMiPerfil() {
+  const lista = getClientes();
+  const idx   = lista.findIndex(c => c.id === currentUser.cliente_id);
+  if (idx === -1) return;
+  ["nombre","cedula","telefono","email","direccion"].forEach(f => {
+    const v = document.getElementById("perfil-" + f).value.trim();
+    if (v) lista[idx][f] = v;
   });
-
-  wrap.innerHTML = html;
+  setClientes(lista);
+  flash("Tus datos han sido actualizados.");
 }
 
-// ─────────────────────────────────────────────────────────────
-//  UTILIDADES GENERALES
-// ─────────────────────────────────────────────────────────────
-function updateStats() {
-  document.getElementById('stat-clientes').textContent = getClientes().length;
-  document.getElementById('stat-caninos').textContent  = getCaninos().length;
-  document.getElementById('stat-fecha').textContent    =
-    new Date().toLocaleDateString('es-CO', { day:'2-digit', month:'short' });
+function guardarNuevaPassword() {
+  const actual   = document.getElementById("perfil-pass-actual").value.trim();
+  const nueva    = document.getElementById("perfil-pass-nueva").value.trim();
+  const confirma = document.getElementById("perfil-pass-confirm").value.trim();
+  const usuarios = getUsuarios();
+  const idx      = usuarios.findIndex(u => u.id === currentUser.id);
+  if (idx === -1) return;
+  if (usuarios[idx].password !== actual) { flash("Contrasena actual incorrecta.", "danger"); return; }
+  if (!nueva)             { flash("La nueva contrasena no puede estar vacia.", "danger"); return; }
+  if (nueva !== confirma) { flash("Las contrasenas no coinciden.", "danger"); return; }
+  usuarios[idx].password = nueva;
+  setUsuarios(usuarios);
+  ["perfil-pass-actual","perfil-pass-nueva","perfil-pass-confirm"].forEach(id =>
+    document.getElementById(id).value = "");
+  flash("Contrasena actualizada.");
 }
 
-function showAlert(id, type, msg) {
-  const el = document.getElementById(id);
-  el.className = `alert ${type === 'success' ? 'alert-success' : type === 'error' ? 'alert-error' : ''} ${msg ? 'show' : ''}`;
-  el.textContent = msg;
+// ════════════════════════════════════════════════════════
+//  MI CANINO - agregar propio (cliente)
+// ════════════════════════════════════════════════════════
+function guardarMiCanino() {
+  const campos = ["mican-nombre","mican-raza","mican-edad","mican-peso","mican-color"];
+  const vals   = campos.map(id => document.getElementById(id).value.trim());
+  if (vals.some(v => !v)) {
+    modalError("modal-mican-error", "Los campos marcados * son obligatorios."); return;
+  }
+  const lista = getCaninos();
+  lista.push({
+    id:            genId("P", lista),
+    nombre:        vals[0],
+    raza:          vals[1],
+    edad:          vals[2],
+    peso:          vals[3],
+    color:         vals[4],
+    observaciones: document.getElementById("mican-obs").value.trim(),
+    cliente_id:    currentUser.cliente_id,
+    fecha_registro: hoy(),
+  });
+  setCaninos(lista);
+  campos.forEach(id => document.getElementById(id).value = "");
+  document.getElementById("mican-obs").value = "";
+  modalError("modal-mican-error", "");
+  closeModal("modal-mi-canino");
+  flash("Canino registrado correctamente.");
+  renderMisCaninos();
 }
 
-// ─────────────────────────────────────────────────────────────
-//  INICIALIZACIÓN
-// ─────────────────────────────────────────────────────────────
-updateStats();
+// ════════════════════════════════════════════════════════
+//  CITAS - ADMIN
+// ════════════════════════════════════════════════════════
+function renderCitasAdmin() {
+  switchTabCitas("tab-citas-pend");
+  actualizarBadgeCitas();
+}
+
+function switchTabCitas(tabId) {
+  document.querySelectorAll("#page-citas-admin .tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll("#page-citas-admin .tab-panel").forEach(p => p.classList.remove("active"));
+  document.querySelector('[data-tab="' + tabId + '"]').classList.add("active");
+  document.getElementById(tabId).classList.add("active");
+  const todas = getCitas();
+  const cmap  = Object.fromEntries(getClientes().map(c => [c.id, c.nombre]));
+  const camap = Object.fromEntries(getCaninos().map(c => [c.id, c.nombre]));
+  const lista = tabId === "tab-citas-pend"
+    ? todas.filter(c => c.estado === "pendiente")
+    : todas;
+  const tbodyId = tabId === "tab-citas-pend" ? "tabla-citas-pend" : "tabla-citas-todas";
+  renderTablaCitas(tbodyId, lista, cmap, camap);
+}
+
+function renderTablaCitas(tbodyId, lista, cmap, camap) {
+  const tbody = document.getElementById(tbodyId);
+  if (!lista.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-row">No hay citas.</td></tr>'; return;
+  }
+  tbody.innerHTML = lista.map(c => {
+    const estadoClass = c.estado === "pendiente" ? "badge-warn" : c.estado === "confirmada" ? "badge-success" : "badge-danger";
+    return '<tr>' +
+      '<td><span class="badge badge-primary">' + c.id + '</span></td>' +
+      '<td>' + (cmap[c.cliente_id]||c.cliente_id) + '</td>' +
+      '<td>' + (camap[c.canino_id]||c.canino_id) + '</td>' +
+      '<td><span class="tipo-badge tipo-' + c.tipo.toLowerCase() + '">' + c.tipo + '</span></td>' +
+      '<td>' + c.fecha + '</td>' +
+      '<td>' + (c.nota||"—") + '</td>' +
+      '<td><span class="badge ' + estadoClass + '">' + c.estado + '</span></td>' +
+      '<td style="display:flex;gap:.35rem">' +
+        (c.estado === "pendiente"
+          ? '<button class="btn btn-primary btn-sm" onclick="cambiarEstadoCita(\'' + c.id + '\',\'confirmada\')">Confirmar</button>' +
+            '<button class="btn btn-danger btn-sm"  onclick="cambiarEstadoCita(\'' + c.id + '\',\'cancelada\')">Cancelar</button>'
+          : '<span style="color:var(--text-muted);font-size:.8rem">' + c.estado + '</span>') +
+      '</td></tr>';
+  }).join("");
+}
+
+function cambiarEstadoCita(id, nuevoEstado) {
+  const lista = getCitas();
+  const idx   = lista.findIndex(c => c.id === id);
+  if (idx === -1) return;
+  lista[idx].estado = nuevoEstado;
+  setCitas(lista);
+  flash("Cita " + nuevoEstado + ".");
+  renderCitasAdmin();
+}
+
+// ════════════════════════════════════════════════════════
+//  CITAS - CLIENTE
+// ════════════════════════════════════════════════════════
+function abrirModalCita() {
+  const sel = document.getElementById("cita-canino");
+  const mis = getCaninos().filter(c => c.cliente_id === currentUser.cliente_id);
+  sel.innerHTML = '<option value="">— Seleccionar canino —</option>' +
+    mis.map(c => '<option value="' + c.id + '">' + c.nombre + '</option>').join("");
+  openModal("modal-nueva-cita");
+}
+
+function guardarCita() {
+  const caninoId = document.getElementById("cita-canino").value;
+  const tipo     = document.getElementById("cita-tipo").value;
+  const fecha    = document.getElementById("cita-fecha").value;
+  const nota     = document.getElementById("cita-nota").value.trim();
+
+  if (!caninoId || !tipo || !fecha) {
+    modalError("modal-cita-error", "Canino, tipo y fecha son obligatorios."); return;
+  }
+  const lista = getCitas();
+  lista.push({ id: "CT" + Date.now(), cliente_id: currentUser.cliente_id,
+    canino_id: caninoId, tipo, fecha, nota, estado: "pendiente", creada: hoy() });
+  setCitas(lista);
+  ["cita-canino","cita-tipo","cita-fecha","cita-nota"].forEach(id =>
+    document.getElementById(id).value = "");
+  modalError("modal-cita-error", "");
+  closeModal("modal-nueva-cita");
+  flash("Solicitud de cita enviada. El admin la revisara pronto.");
+  renderMisCitas();
+}
+
+function renderMisCitas() {
+  const camap = Object.fromEntries(getCaninos().map(c => [c.id, c.nombre]));
+  const mis   = getCitas().filter(c => c.cliente_id === currentUser.cliente_id);
+  const tbody = document.getElementById("tabla-mis-citas");
+  if (!mis.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-row">No tienes citas solicitadas.</td></tr>'; return;
+  }
+  tbody.innerHTML = mis.map(c => {
+    const estadoClass = c.estado === "pendiente" ? "badge-warn" : c.estado === "confirmada" ? "badge-success" : "badge-danger";
+    return '<tr>' +
+      '<td><span class="badge badge-primary">' + c.id + '</span></td>' +
+      '<td>' + (camap[c.canino_id]||c.canino_id) + '</td>' +
+      '<td><span class="tipo-badge tipo-' + c.tipo.toLowerCase() + '">' + c.tipo + '</span></td>' +
+      '<td>' + c.fecha + '</td>' +
+      '<td>' + (c.nota||"—") + '</td>' +
+      '<td><span class="badge ' + estadoClass + '">' + c.estado + '</span></td></tr>';
+  }).join("");
+}
+
+// ════════════════════════════════════════════════════════
+//  MODALES
+// ════════════════════════════════════════════════════════
+function openModal(id)  { document.getElementById(id).classList.add("show"); }
+function closeModal(id) { document.getElementById(id).classList.remove("show"); }
+document.addEventListener("click", e => {
+  if (e.target.classList.contains("modal-overlay")) e.target.classList.remove("show");
+});

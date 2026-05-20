@@ -3,284 +3,522 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sistema Canino 🐾</title>
+  <title>Sistema Canino - Salud, Estetica y Recreacion</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<!-- ════════════════════════════════════════
-     PANTALLA DE LOGIN
-════════════════════════════════════════ -->
-<div id="login-screen" class="active">
-  <div class="login-card">
+<!-- ══════════════════════════════════════════════════════
+     LOGIN
+══════════════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div id="login-card" class="login-card">
     <div class="login-logo">🐾</div>
-    <div class="login-title">Sistema Canino</div>
-    <div class="login-sub">Centro de Salud, Estética y Recreación</div>
+    <h1 class="login-title">Sistema Canino</h1>
+    <p class="login-subtitle">Salud · Estetica · Recreacion</p>
 
-    <div class="attempts-bar" id="attempts-bar"></div>
+    <div id="login-error" class="alert alert-danger"></div>
 
-    <div class="form-group" style="margin-bottom:14px">
-      <label>ID de Usuario</label>
-      <input type="text" id="login-id" placeholder="Ej: admin" autocomplete="off">
+    <div id="attempts-bar">
+      <span>Intentos: </span>
+      <span class="attempt-dot"></span>
+      <span class="attempt-dot"></span>
+      <span class="attempt-dot"></span>
     </div>
-    <div class="form-group" style="margin-bottom:24px">
-      <label>Contraseña</label>
-      <input type="password" id="login-pass" placeholder="••••••"
-             onkeydown="if(event.key==='Enter') doLogin()">
+
+    <div class="form-group">
+      <label class="form-label">Usuario</label>
+      <input id="login-user" type="text" class="form-input" placeholder="Ingresa tu usuario">
     </div>
-    <button class="btn btn-primary btn-full" onclick="doLogin()">🔐 Ingresar</button>
-    <p class="login-hint">Usuario de prueba: <strong>admin</strong> / <strong>1234</strong></p>
+    <div class="form-group" style="margin-top:.75rem">
+      <label class="form-label">Contrasena</label>
+      <input id="login-pass" type="password" class="form-input" placeholder="Ingresa tu contrasena">
+    </div>
+    <button id="login-btn" class="btn btn-primary btn-full" style="margin-top:1.2rem" onclick="doLogin()">
+      Iniciar Sesion
+    </button>
+    <p class="login-hint">Admin: <code>admin</code> / <code>1234</code></p>
+    <div style="text-align:center;margin-top:1rem;border-top:1px solid var(--border);padding-top:1rem">
+      <span style="font-size:.85rem;color:var(--text-muted)">¿Eres cliente nuevo? </span>
+      <button class="btn-link" onclick="toggleRegistro(true)">Crear cuenta</button>
+    </div>
+  </div>
+
+  <!-- Formulario de auto-registro -->
+  <div id="registro-card" class="login-card" style="display:none;max-width:480px">
+    <div class="login-logo">🐾</div>
+    <h1 class="login-title" style="font-size:1.3rem">Crear cuenta</h1>
+    <p class="login-subtitle">Completa tus datos para registrarte</p>
+    <div id="registro-error" class="alert alert-danger"></div>
+    <div class="form-grid" style="gap:.75rem">
+      <div class="form-group"><label class="form-label">Nombre completo *</label><input id="reg-nombre" type="text" class="form-input"></div>
+      <div class="form-group"><label class="form-label">Cedula *</label><input id="reg-cedula" type="text" class="form-input"></div>
+      <div class="form-group"><label class="form-label">Telefono *</label><input id="reg-telefono" type="text" class="form-input"></div>
+      <div class="form-group"><label class="form-label">Email *</label><input id="reg-email" type="email" class="form-input"></div>
+      <div class="form-group form-full"><label class="form-label">Direccion *</label><input id="reg-direccion" type="text" class="form-input"></div>
+      <div class="form-group"><label class="form-label">Usuario *</label><input id="reg-usuario" type="text" class="form-input" placeholder="Ej: juan123"></div>
+      <div class="form-group"><label class="form-label">Contrasena *</label><input id="reg-password" type="password" class="form-input"></div>
+    </div>
+    <button class="btn btn-primary btn-full" style="margin-top:1.2rem" onclick="registrarse()">Crear cuenta</button>
+    <div style="text-align:center;margin-top:.75rem">
+      <button class="btn-link" onclick="toggleRegistro(false)">Ya tengo cuenta — Iniciar sesion</button>
+    </div>
   </div>
 </div>
 
-<!-- ════════════════════════════════════════
-     APLICACIÓN PRINCIPAL
-════════════════════════════════════════ -->
+
+<!-- ══════════════════════════════════════════════════════
+     APP
+══════════════════════════════════════════════════════ -->
 <div id="app-screen">
 
-  <!-- ── BARRA LATERAL ── -->
-  <div class="sidebar">
+  <!-- Sidebar -->
+  <aside class="sidebar">
     <div class="sidebar-brand">
-      <div class="brand-logo">🐾</div>
-      <div class="brand-name">Sistema Canino</div>
-      <div class="brand-sub">Salud · Estética · Recreación</div>
+      <span class="brand-icon">🐾</span>
+      <div>
+        <div class="brand-name">SistemaCan</div>
+        <div class="brand-sub">Salud · Estetica · Recreacion</div>
+      </div>
     </div>
 
-    <nav class="sidebar-nav">
-      <div class="nav-item active" id="nav-dashboard" onclick="showPage('dashboard')">
-        <span class="nav-icon">🏠</span> Inicio
+    <!-- Nav ADMIN -->
+    <nav id="nav-admin" class="sidebar-nav">
+      <div class="nav-item active" data-page="dashboard" onclick="showPage('dashboard')">
+        <span class="nav-icon">📊</span> Dashboard
       </div>
-      <div class="nav-item" id="nav-clientes" onclick="showPage('clientes')">
+      <div class="nav-item" data-page="clientes" onclick="showPage('clientes')">
         <span class="nav-icon">👤</span> Clientes
       </div>
-      <div class="nav-item" id="nav-caninos" onclick="showPage('caninos')">
+      <div class="nav-item" data-page="caninos" onclick="showPage('caninos')">
         <span class="nav-icon">🐶</span> Caninos
       </div>
-      <div class="nav-item" id="nav-consultas" onclick="showPage('consultas')">
+      <div class="nav-item" data-page="consultas" onclick="showPage('consultas')">
         <span class="nav-icon">🔍</span> Consultas
+      </div>
+      <div class="nav-item" data-page="citas-admin" onclick="showPage('citas-admin')">
+        <span class="nav-icon">📅</span> Citas <span id="badge-citas" class="badge-notif" style="display:none">!</span>
+      </div>
+    </nav>
+
+    <!-- Nav CLIENTE -->
+    <nav id="nav-cliente" class="sidebar-nav" style="display:none">
+      <div class="nav-item active" data-page="mis-caninos" onclick="showPage('mis-caninos')">
+        <span class="nav-icon">🐶</span> Mis Caninos
+      </div>
+      <div class="nav-item" data-page="mis-citas" onclick="showPage('mis-citas')">
+        <span class="nav-icon">📅</span> Mis Citas
+      </div>
+      <div class="nav-item" data-page="mi-perfil" onclick="showPage('mi-perfil')">
+        <span class="nav-icon">👤</span> Mi Perfil
       </div>
     </nav>
 
     <div class="sidebar-footer">
-      <div class="user-badge">
-        <div class="user-avatar" id="user-avatar">A</div>
-        <div>
-          <div class="user-name" id="user-display">admin</div>
-          <div class="user-role">Administrador</div>
-        </div>
-      </div>
-      <button class="btn-logout" onclick="doLogout()">↩ Cerrar sesión</button>
+      <span class="user-badge" id="current-user"></span>
+      <button class="btn-logout" onclick="doLogout()">Salir</button>
     </div>
-  </div>
+  </aside>
 
-  <!-- ── CONTENIDO PRINCIPAL ── -->
-  <div class="main">
+  <!-- Contenido -->
+  <main class="main-content">
+    <div id="flash-container"></div>
 
-    <!-- INICIO / DASHBOARD -->
-    <div id="page-dashboard" class="screen active">
+    <!-- ── DASHBOARD ─────────────────────────────── -->
+    <div id="page-dashboard" class="page active">
       <div class="page-header">
-        <div class="page-title">🏠 Panel de inicio</div>
-        <div class="page-sub">Bienvenido al sistema de gestión canina</div>
+        <div><h2 class="page-title">Dashboard</h2><p class="page-sub">Resumen del sistema</p></div>
       </div>
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-icon purple">👤</div>
-          <div><div class="stat-val" id="stat-clientes">0</div><div class="stat-lbl">Clientes registrados</div></div>
+          <div class="stat-icon">👤</div>
+          <div><div class="stat-value" id="stat-clientes">0</div><div class="stat-label">Clientes</div></div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon green">🐶</div>
-          <div><div class="stat-val" id="stat-caninos">0</div><div class="stat-lbl">Caninos registrados</div></div>
+          <div class="stat-icon">🐶</div>
+          <div><div class="stat-value" id="stat-caninos">0</div><div class="stat-label">Caninos</div></div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon orange">📅</div>
-          <div><div class="stat-val" id="stat-fecha">—</div><div class="stat-lbl">Fecha de hoy</div></div>
+          <div class="stat-icon">🏷️</div>
+          <div><div class="stat-value" id="stat-razas">0</div><div class="stat-label">Razas</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⭐</div>
+          <div><div class="stat-value stat-small" id="stat-ultimo">—</div><div class="stat-label">Ultimo cliente</div></div>
         </div>
       </div>
-      <div class="card">
-        <div class="card-title">⚡ Accesos rápidos</div>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;">
-          <button class="btn btn-primary" onclick="showPage('clientes'); openModalCliente()">➕ Nuevo cliente</button>
-          <button class="btn btn-primary" onclick="showPage('caninos'); openModalCanino()">➕ Nuevo canino</button>
-          <button class="btn btn-outline" onclick="showPage('consultas')">🔍 Ver consultas</button>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-title">ℹ️ Acerca del sistema</div>
-        <p class="info-text">
-          Sistema para la gestión de clientes y caninos del centro de salud, estética y recreación.<br>
-          Permite registrar clientes, asociar caninos y realizar consultas.<br><br>
-          <strong>Módulos:</strong> Iniciar sesión · Registrar cliente · Registrar canino · Consultas
-        </p>
-        <p class="info-meta">Teoría General de Sistemas · ITM · Shara García Betancur · 2026</p>
+      <p class="section-title">Acciones rapidas</p>
+      <div class="action-grid">
+        <div class="action-card" onclick="showPage('clientes')"><span class="action-icon">👤</span> Registrar Cliente</div>
+        <div class="action-card" onclick="showPage('caninos')"><span class="action-icon">🐶</span> Registrar Canino</div>
+        <div class="action-card" onclick="showPage('consultas')"><span class="action-icon">🔍</span> Consultas</div>
       </div>
     </div>
 
-    <!-- CLIENTES -->
-    <div id="page-clientes" class="screen">
-      <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div>
-          <div class="page-title">👤 Clientes</div>
-          <div class="page-sub">Gestión de clientes del centro canino</div>
-        </div>
-        <button class="btn btn-primary" onclick="openModalCliente()">➕ Registrar cliente</button>
-      </div>
-      <div class="card">
-        <div class="search-bar">
-          <input type="text" id="search-cliente" placeholder="🔎 Buscar por nombre, apellido o ID..." oninput="renderClientes()">
-        </div>
-        <div class="table-wrap" id="tabla-clientes"></div>
-      </div>
-    </div>
-
-    <!-- CANINOS -->
-    <div id="page-caninos" class="screen">
-      <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div>
-          <div class="page-title">🐶 Caninos</div>
-          <div class="page-sub">Gestión de caninos registrados</div>
-        </div>
-        <button class="btn btn-primary" onclick="openModalCanino()">➕ Registrar canino</button>
-      </div>
-      <div class="card">
-        <div class="search-bar">
-          <input type="text" id="search-canino" placeholder="🔎 Buscar por nombre, raza o dueño..." oninput="renderCaninos()">
-        </div>
-        <div class="table-wrap" id="tabla-caninos"></div>
-      </div>
-    </div>
-
-    <!-- CONSULTAS -->
-    <div id="page-consultas" class="screen">
+    <!-- ── CLIENTES ───────────────────────────────── -->
+    <div id="page-clientes" class="page">
       <div class="page-header">
-        <div class="page-title">🔍 Consultas</div>
-        <div class="page-sub">Busca y filtra la información del sistema</div>
+        <div><h2 class="page-title">Clientes</h2><p class="page-sub">Gestion de clientes</p></div>
+        <button class="btn btn-primary" onclick="openModal('modal-cliente')">+ Nuevo Cliente</button>
+      </div>
+      <div class="search-bar">
+        <input id="search-clientes" type="text" class="form-input"
+               placeholder="Buscar por nombre, ID o telefono..." oninput="renderClientes()">
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>ID</th><th>Nombre</th><th>Cedula</th><th>Telefono</th><th>Email</th><th>Direccion</th><th>Registro</th><th>Acciones</th></tr></thead>
+          <tbody id="tabla-clientes"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── CANINOS ────────────────────────────────── -->
+    <div id="page-caninos" class="page">
+      <div class="page-header">
+        <div><h2 class="page-title">Caninos</h2><p class="page-sub">Gestion de caninos</p></div>
+        <button class="btn btn-primary" onclick="abrirModalCanino()">+ Nuevo Canino</button>
+      </div>
+      <div class="search-bar">
+        <input id="search-caninos" type="text" class="form-input"
+               placeholder="Buscar por nombre, ID o raza..." oninput="renderCaninos()">
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>ID</th><th>Nombre</th><th>Raza</th><th>Edad</th><th>Peso</th><th>Color</th><th>Observaciones</th><th>Cliente</th><th>Registro</th><th>Acciones</th></tr></thead>
+          <tbody id="tabla-caninos"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── CONSULTAS ──────────────────────────────── -->
+    <div id="page-consultas" class="page">
+      <div class="page-header">
+        <div><h2 class="page-title">Consultas</h2><p class="page-sub">Busca y visualiza informacion</p></div>
       </div>
       <div class="tabs">
-        <div class="tab active" onclick="switchTab('tab-todos-clientes', this)">👤 Todos los clientes</div>
-        <div class="tab" onclick="switchTab('tab-todos-caninos', this)">🐶 Todos los caninos</div>
-        <div class="tab" onclick="switchTab('tab-por-cliente', this)">🔗 Caninos por cliente</div>
+        <div class="tab active" data-tab="tab-clientes"    onclick="switchTab('tab-clientes')">👤 Todos los Clientes</div>
+        <div class="tab"        data-tab="tab-caninos"     onclick="switchTab('tab-caninos')">🐶 Todos los Caninos</div>
+        <div class="tab"        data-tab="tab-por-cliente" onclick="switchTab('tab-por-cliente')">🔍 Caninos por Cliente</div>
       </div>
-      <div id="tab-todos-clientes" class="tab-content">
-        <div class="card"><div class="table-wrap" id="cons-tabla-clientes"></div></div>
+      <div id="tab-clientes" class="tab-panel active">
+        <div class="table-wrap"><table class="data-table">
+          <thead><tr><th>ID</th><th>Nombre</th><th>Cedula</th><th>Telefono</th><th>Email</th><th>Direccion</th><th>Registro</th></tr></thead>
+          <tbody id="cons-tabla-clientes"></tbody>
+        </table></div>
       </div>
-      <div id="tab-todos-caninos" class="tab-content" style="display:none">
-        <div class="card"><div class="table-wrap" id="cons-tabla-caninos"></div></div>
+      <div id="tab-caninos" class="tab-panel">
+        <div class="table-wrap"><table class="data-table">
+          <thead><tr><th>ID</th><th>Nombre</th><th>Raza</th><th>Edad</th><th>Peso</th><th>Color</th><th>Observaciones</th><th>Cliente</th></tr></thead>
+          <tbody id="cons-tabla-caninos"></tbody>
+        </table></div>
       </div>
-      <div id="tab-por-cliente" class="tab-content" style="display:none">
-        <div class="card">
-          <div style="display:flex;gap:12px;margin-bottom:20px;align-items:flex-end;">
-            <div class="form-group" style="flex:1">
-              <label>Buscar cliente por nombre o ID</label>
-              <input type="text" id="cons-cliente-id" placeholder="Ej: C001 o Juan">
-            </div>
-            <button class="btn btn-primary" onclick="buscarCaninoPorCliente()">Buscar</button>
+      <div id="tab-por-cliente" class="tab-panel">
+        <div class="search-bar" style="margin-bottom:1rem">
+          <input id="cons-buscar-cliente" type="text" class="form-input" placeholder="ID o nombre del cliente...">
+          <button class="btn btn-primary" onclick="buscarCaninoPorCliente()">Buscar</button>
+        </div>
+        <p id="cons-resultado-info" class="search-result-info"></p>
+        <div class="table-wrap"><table class="data-table">
+          <thead><tr><th>ID</th><th>Nombre</th><th>Raza</th><th>Edad</th><th>Peso</th><th>Color</th><th>Observaciones</th><th>ID Cliente</th><th>Dueno</th></tr></thead>
+          <tbody id="cons-tabla-por-cliente"><tr><td colspan="9" class="empty-row">Ingresa un ID o nombre de cliente.</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ── MIS CANINOS (cliente) ──────────────────── -->
+    <div id="page-mis-caninos" class="page">
+      <div class="page-header">
+        <div><h2 class="page-title">Mis Caninos</h2><p class="page-sub">Caninos registrados a tu nombre</p></div>
+        <button class="btn btn-primary" onclick="openModal('modal-mi-canino')">+ Agregar Canino</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>ID</th><th>Nombre</th><th>Raza</th><th>Edad</th><th>Peso</th><th>Color</th><th>Observaciones</th></tr></thead>
+          <tbody id="tabla-mis-caninos"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── MI PERFIL (cliente) ───────────────────── -->
+    <div id="page-mi-perfil" class="page">
+      <div class="page-header">
+        <div><h2 class="page-title">Mi Perfil</h2><p class="page-sub">Actualiza tu informacion personal</p></div>
+      </div>
+
+      <div class="card" style="background:#fff;border-radius:10px;padding:1.5rem;box-shadow:0 1px 4px rgba(0,0,0,.08);max-width:600px;margin-bottom:1.5rem">
+        <h3 style="font-size:1rem;margin-bottom:1rem;color:#64748b">Datos personales</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Nombre</label>
+            <input id="perfil-nombre" type="text" class="form-input">
           </div>
-          <div class="table-wrap" id="cons-tabla-por-cliente"></div>
+          <div class="form-group">
+            <label class="form-label">Cedula</label>
+            <input id="perfil-cedula" type="text" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Telefono</label>
+            <input id="perfil-telefono" type="text" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <input id="perfil-email" type="email" class="form-input">
+          </div>
+          <div class="form-group form-full">
+            <label class="form-label">Direccion</label>
+            <input id="perfil-direccion" type="text" class="form-input">
+          </div>
+        </div>
+        <div style="margin-top:1rem;text-align:right">
+          <button class="btn btn-primary" onclick="guardarMiPerfil()">Guardar cambios</button>
+        </div>
+      </div>
+
+      <div class="card" style="background:#fff;border-radius:10px;padding:1.5rem;box-shadow:0 1px 4px rgba(0,0,0,.08);max-width:600px">
+        <h3 style="font-size:1rem;margin-bottom:1rem;color:#64748b">Cambiar contrasena</h3>
+        <div class="form-group" style="margin-bottom:.75rem">
+          <label class="form-label">Contrasena actual</label>
+          <input id="perfil-pass-actual" type="password" class="form-input">
+        </div>
+        <div class="form-group" style="margin-bottom:.75rem">
+          <label class="form-label">Nueva contrasena</label>
+          <input id="perfil-pass-nueva" type="password" class="form-input">
+        </div>
+        <div class="form-group" style="margin-bottom:1rem">
+          <label class="form-label">Confirmar contrasena</label>
+          <input id="perfil-pass-confirm" type="password" class="form-input">
+        </div>
+        <div style="text-align:right">
+          <button class="btn btn-primary" onclick="guardarNuevaPassword()">Actualizar contrasena</button>
         </div>
       </div>
     </div>
 
-  </div><!-- /main -->
-</div><!-- /app -->
-
-<!-- ════════════════════════════════════════
-     MODALES
-════════════════════════════════════════ -->
-
-<!-- Modal: Registrar cliente -->
-<div class="modal-overlay" id="modal-cliente">
-  <div class="modal">
-    <div class="modal-title">👤 Registrar nuevo cliente</div>
-    <div id="alert-cliente" class="alert"></div>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Nombre *</label>
-        <input type="text" id="c-nombre" placeholder="Ej: María">
+    <!-- ── CITAS ADMIN ─────────────────────────────── -->
+    <div id="page-citas-admin" class="page">
+      <div class="page-header">
+        <div><h2 class="page-title">Citas</h2><p class="page-sub">Solicitudes de los clientes</p></div>
       </div>
-      <div class="form-group">
-        <label>Apellido *</label>
-        <input type="text" id="c-apellido" placeholder="Ej: González">
+      <div class="tabs">
+        <div class="tab active" data-tab="tab-citas-pend"  onclick="switchTabCitas('tab-citas-pend')">⏳ Pendientes</div>
+        <div class="tab"        data-tab="tab-citas-todas" onclick="switchTabCitas('tab-citas-todas')">📋 Todas</div>
       </div>
-      <div class="form-group">
-        <label>Teléfono</label>
-        <input type="text" id="c-telefono" placeholder="Ej: 3001234567">
+      <div id="tab-citas-pend" class="tab-panel active">
+        <div class="table-wrap"><table class="data-table">
+          <thead><tr><th>ID</th><th>Cliente</th><th>Canino</th><th>Tipo</th><th>Fecha</th><th>Nota</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody id="tabla-citas-pend"></tbody>
+        </table></div>
       </div>
-      <div class="form-group">
-        <label>Email</label>
-        <input type="email" id="c-email" placeholder="Ej: maria@email.com">
-      </div>
-      <div class="form-group full">
-        <label>Dirección</label>
-        <input type="text" id="c-direccion" placeholder="Ej: Calle 10 #5-20, Medellín">
+      <div id="tab-citas-todas" class="tab-panel">
+        <div class="table-wrap"><table class="data-table">
+          <thead><tr><th>ID</th><th>Cliente</th><th>Canino</th><th>Tipo</th><th>Fecha</th><th>Nota</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody id="tabla-citas-todas"></tbody>
+        </table></div>
       </div>
     </div>
-    <div class="modal-actions">
-      <button class="btn btn-outline" onclick="closeModal('modal-cliente')">Cancelar</button>
-      <button class="btn btn-primary" onclick="guardarCliente()">✅ Guardar cliente</button>
+
+    <!-- ── MIS CITAS (cliente) ────────────────────── -->
+    <div id="page-mis-citas" class="page">
+      <div class="page-header">
+        <div><h2 class="page-title">Mis Citas</h2><p class="page-sub">Solicita y consulta tus citas</p></div>
+        <button class="btn btn-primary" onclick="abrirModalCita()">+ Solicitar Cita</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>ID</th><th>Canino</th><th>Tipo</th><th>Fecha deseada</th><th>Nota</th><th>Estado</th></tr></thead>
+          <tbody id="tabla-mis-citas"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL - NUEVO CLIENTE
+══════════════════════════════════════════════════════ -->
+<div id="modal-cliente" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Registrar Cliente</h3>
+      <button class="modal-close" onclick="closeModal('modal-cliente')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Nombre completo *</label><input id="cli-nombre" type="text" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Cedula *</label><input id="cli-cedula" type="text" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Telefono *</label><input id="cli-telefono" type="text" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Email *</label><input id="cli-email" type="email" class="form-input"></div>
+        <div class="form-group form-full"><label class="form-label">Direccion *</label><input id="cli-direccion" type="text" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Usuario de acceso *</label><input id="cli-usuario" type="text" class="form-input" placeholder="Ej: juan123"></div>
+        <div class="form-group"><label class="form-label">Contrasena *</label><input id="cli-password" type="password" class="form-input"></div>
+      </div>
+    </div>
+    <div id="modal-cliente-error" class="modal-error" style="display:none"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-cliente')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCliente()">Guardar Cliente</button>
     </div>
   </div>
 </div>
 
-<!-- Modal: Registrar canino -->
-<div class="modal-overlay" id="modal-canino">
+<!-- ══════════════════════════════════════════════════════
+     MODAL - EDITAR CLIENTE
+══════════════════════════════════════════════════════ -->
+<div id="modal-editar-cliente" class="modal-overlay">
   <div class="modal">
-    <div class="modal-title">🐶 Registrar nuevo canino</div>
-    <div id="alert-canino" class="alert"></div>
-    <div class="form-grid">
-      <div class="form-group full">
-        <label>Cliente propietario *</label>
-        <select id="p-cliente">
-          <option value="">— Seleccione un cliente —</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Nombre del canino *</label>
-        <input type="text" id="p-nombre" placeholder="Ej: Max">
-      </div>
-      <div class="form-group">
-        <label>Raza</label>
-        <input type="text" id="p-raza" placeholder="Ej: Labrador">
-      </div>
-      <div class="form-group">
-        <label>Edad (años)</label>
-        <input type="number" id="p-edad" placeholder="Ej: 3" min="0" max="30">
-      </div>
-      <div class="form-group">
-        <label>Peso (kg)</label>
-        <input type="number" id="p-peso" placeholder="Ej: 25.5" step="0.1">
-      </div>
-      <div class="form-group">
-        <label>Color</label>
-        <input type="text" id="p-color" placeholder="Ej: Dorado">
-      </div>
-      <div class="form-group">
-        <label>Servicio</label>
-        <select id="p-servicio">
-          <option value="Salud">🏥 Salud</option>
-          <option value="Estética">✂️ Estética</option>
-          <option value="Recreación">🎾 Recreación</option>
-          <option value="Salud y Estética">🏥✂️ Salud y Estética</option>
-        </select>
-      </div>
-      <div class="form-group full">
-        <label>Observaciones</label>
-        <input type="text" id="p-obs" placeholder="Ej: Alérgico al pollo">
+    <div class="modal-header">
+      <h3>Editar Cliente</h3>
+      <button class="modal-close" onclick="closeModal('modal-editar-cliente')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input id="edit-cli-id" type="hidden">
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Nombre</label><input id="edit-cli-nombre" type="text" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Cedula</label><input id="edit-cli-cedula" type="text" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Telefono</label><input id="edit-cli-telefono" type="text" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Email</label><input id="edit-cli-email" type="email" class="form-input"></div>
+        <div class="form-group form-full"><label class="form-label">Direccion</label><input id="edit-cli-direccion" type="text" class="form-input"></div>
       </div>
     </div>
-    <div class="modal-actions">
-      <button class="btn btn-outline" onclick="closeModal('modal-canino')">Cancelar</button>
-      <button class="btn btn-primary" onclick="guardarCanino()">✅ Guardar canino</button>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-editar-cliente')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarEdicionCliente()">Guardar cambios</button>
     </div>
   </div>
 </div>
 
-<!-- Modal: Detalle canino -->
-<div class="modal-overlay" id="modal-detalle">
+<!-- ══════════════════════════════════════════════════════
+     MODAL - NUEVO CANINO
+══════════════════════════════════════════════════════ -->
+<div id="modal-canino" class="modal-overlay">
   <div class="modal">
-    <div class="modal-title" id="detalle-titulo">🐶 Ficha del canino</div>
-    <div class="ficha" id="detalle-body"></div>
-    <div class="modal-actions">
-      <button class="btn btn-outline" onclick="closeModal('modal-detalle')">Cerrar</button>
+    <div class="modal-header">
+      <h3>Registrar Canino</h3>
+      <button class="modal-close" onclick="closeModal('modal-canino')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Cliente *</label>
+          <select id="can-cliente" class="form-input"><option value="">— Seleccionar —</option></select>
+        </div>
+        <div class="form-group"><label class="form-label">Nombre del canino *</label><input id="can-nombre" type="text" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Raza *</label><input id="can-raza" type="text" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Edad *</label><input id="can-edad" type="text" class="form-input" placeholder="Ej: 2 anos"></div>
+        <div class="form-group"><label class="form-label">Peso (kg) *</label><input id="can-peso" type="text" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Color *</label><input id="can-color" type="text" class="form-input"></div>
+        <div class="form-group form-full"><label class="form-label">Observaciones</label>
+          <textarea id="can-obs" class="form-input" rows="2" placeholder="Alergias, condiciones especiales..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-canino')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCanino()">Guardar Canino</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL - EDITAR CANINO
+══════════════════════════════════════════════════════ -->
+<div id="modal-editar-canino" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Editar Canino</h3>
+      <button class="modal-close" onclick="closeModal('modal-editar-canino')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input id="edit-can-id" type="hidden">
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Nombre</label><input id="edit-can-nombre" type="text" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Raza</label><input id="edit-can-raza" type="text" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Edad</label><input id="edit-can-edad" type="text" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Peso (kg)</label><input id="edit-can-peso" type="text" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Color</label><input id="edit-can-color" type="text" class="form-input"></div>
+        <div class="form-group form-full"><label class="form-label">Observaciones</label>
+          <textarea id="edit-can-obs" class="form-input" rows="2"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-editar-canino')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarEdicionCanino()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL - MI CANINO (cliente agrega su propio canino)
+══════════════════════════════════════════════════════ -->
+<div id="modal-mi-canino" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Agregar Canino</h3>
+      <button class="modal-close" onclick="closeModal('modal-mi-canino')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Nombre *</label><input id="mican-nombre" type="text" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Raza *</label><input id="mican-raza" type="text" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Edad *</label><input id="mican-edad" type="text" class="form-input" placeholder="Ej: 2 anos"></div>
+        <div class="form-group"><label class="form-label">Peso (kg) *</label><input id="mican-peso" type="text" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Color *</label><input id="mican-color" type="text" class="form-input"></div>
+        <div class="form-group form-full"><label class="form-label">Observaciones</label>
+          <textarea id="mican-obs" class="form-input" rows="2" placeholder="Alergias, condiciones especiales..."></textarea>
+        </div>
+      </div>
+      <div id="modal-mican-error" class="modal-error" style="display:none"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-mi-canino')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarMiCanino()">Guardar Canino</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL - NUEVA CITA (cliente)
+══════════════════════════════════════════════════════ -->
+<div id="modal-nueva-cita" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Solicitar Cita</h3>
+      <button class="modal-close" onclick="closeModal('modal-nueva-cita')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Canino *</label>
+          <select id="cita-canino" class="form-input">
+            <option value="">— Seleccionar canino —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo de servicio *</label>
+          <select id="cita-tipo" class="form-input">
+            <option value="">— Seleccionar —</option>
+            <option value="Estetica">🪮 Estetica</option>
+            <option value="Salud">🏥 Salud</option>
+            <option value="Recreacion">🎾 Recreacion</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Fecha deseada *</label>
+          <input id="cita-fecha" type="date" class="form-input">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">Nota adicional</label>
+          <textarea id="cita-nota" class="form-input" rows="2" placeholder="Describe lo que necesitas..."></textarea>
+        </div>
+      </div>
+      <div id="modal-cita-error" class="modal-error" style="display:none"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-nueva-cita')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCita()">Enviar solicitud</button>
     </div>
   </div>
 </div>
