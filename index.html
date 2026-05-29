@@ -200,6 +200,8 @@
         <div class="tab active" data-tab="tab-clientes"    onclick="switchTab('tab-clientes')">👤 Todos los Clientes</div>
         <div class="tab"        data-tab="tab-caninos"     onclick="switchTab('tab-caninos')">🐶 Todos los Caninos</div>
         <div class="tab"        data-tab="tab-por-cliente" onclick="switchTab('tab-por-cliente')">🔍 Caninos por Cliente</div>
+        <div class="tab"        data-tab="tab-por-canino"  onclick="switchTab('tab-por-canino')">🆔 Buscar Canino por ID</div>
+        <div class="tab"        data-tab="tab-por-tipo"    onclick="switchTab('tab-por-tipo')">📋 Citas por Tipo de Servicio</div>
       </div>
       <div id="tab-clientes" class="tab-panel active">
         <div class="table-wrap"><table class="data-table">
@@ -222,6 +224,35 @@
         <div class="table-wrap"><table class="data-table">
           <thead><tr><th>ID</th><th>Nombre</th><th>Raza</th><th>Edad</th><th>Peso</th><th>Color</th><th>Observaciones</th><th>ID Cliente</th><th>Dueno</th></tr></thead>
           <tbody id="cons-tabla-por-cliente"><tr><td colspan="9" class="empty-row">Ingresa un ID o nombre de cliente.</td></tr></tbody>
+        </table></div>
+      </div>
+
+      <div id="tab-por-canino" class="tab-panel">
+        <div class="search-bar" style="margin-bottom:1rem">
+          <input id="cons-buscar-canino-id" type="text" class="form-input" placeholder="ID del canino (ej: P001)...">
+          <button class="btn btn-primary" onclick="buscarCaninoPorId()">Buscar</button>
+        </div>
+        <p id="cons-canino-info" class="search-result-info"></p>
+        <div class="table-wrap"><table class="data-table">
+          <thead><tr><th>ID</th><th>Nombre</th><th>Raza</th><th>Edad</th><th>Peso</th><th>Color</th><th>Observaciones</th><th>ID Cliente</th><th>Dueno</th></tr></thead>
+          <tbody id="cons-tabla-por-canino"><tr><td colspan="9" class="empty-row">Ingresa el ID del canino.</td></tr></tbody>
+        </table></div>
+      </div>
+
+      <div id="tab-por-tipo" class="tab-panel">
+        <div class="search-bar" style="margin-bottom:1rem">
+          <select id="cons-tipo-servicio" class="form-input" style="max-width:220px">
+            <option value="">— Todos los tipos —</option>
+            <option value="Estetica">Estética</option>
+            <option value="Salud">Salud</option>
+            <option value="Recreacion">Recreación</option>
+          </select>
+          <button class="btn btn-primary" onclick="buscarCitasPorTipo()">Filtrar</button>
+        </div>
+        <p id="cons-tipo-info" class="search-result-info"></p>
+        <div class="table-wrap"><table class="data-table">
+          <thead><tr><th>ID</th><th>Cliente</th><th>Canino</th><th>Tipo</th><th>Fecha</th><th>Nota</th><th>Estado</th></tr></thead>
+          <tbody id="cons-tabla-por-tipo"><tr><td colspan="7" class="empty-row">Selecciona un tipo de servicio.</td></tr></tbody>
         </table></div>
       </div>
     </div>

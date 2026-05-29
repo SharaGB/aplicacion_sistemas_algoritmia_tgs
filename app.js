@@ -398,9 +398,9 @@ function renderCaninos(q) {
 function renderConsultas() { switchTab("tab-clientes"); }
 
 function switchTab(tabId) {
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
-  document.querySelector('[data-tab="' + tabId + '"]').classList.add("active");
+  document.querySelectorAll("#page-consultas .tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll("#page-consultas .tab-panel").forEach(p => p.classList.remove("active"));
+  document.querySelector('#page-consultas [data-tab="' + tabId + '"]').classList.add("active");
   document.getElementById(tabId).classList.add("active");
   if (tabId === "tab-clientes") renderTabClientes();
   if (tabId === "tab-caninos")  renderTabCaninos();
@@ -426,6 +426,49 @@ function renderTabCaninos() {
         '<td>' + c.nombre + '</td><td>' + c.raza + '</td><td>' + c.edad + '</td>' +
         '<td>' + c.peso + ' kg</td><td>' + c.color + '</td><td>' + (c.observaciones||"—") + '</td>' +
         '<td><span class="badge badge-primary">' + c.cliente_id + '</span> ' + (cmap[c.cliente_id]||"—") + '</td></tr>').join("");
+}
+
+function buscarCaninoPorId() {
+  const q    = document.getElementById("cons-buscar-canino-id").value.trim().toLowerCase();
+  const cmap = Object.fromEntries(getClientes().map(c => [c.id, c.nombre]));
+  const res  = q ? getCaninos().filter(c => c.id.toLowerCase() === q) : [];
+  document.getElementById("cons-canino-info").textContent =
+    q ? (res.length ? '1 canino encontrado para ID "' + q.toUpperCase() + '"' : 'No se encontró ningún canino con ID "' + q.toUpperCase() + '"') : "";
+  document.getElementById("cons-tabla-por-canino").innerHTML = !q
+    ? '<tr><td colspan="9" class="empty-row">Ingresa el ID del canino.</td></tr>'
+    : !res.length
+    ? '<tr><td colspan="9" class="empty-row">Sin resultados.</td></tr>'
+    : res.map(c =>
+        '<tr><td><span class="badge badge-success">' + c.id + '</span></td>' +
+        '<td>' + c.nombre + '</td><td>' + c.raza + '</td><td>' + c.edad + '</td>' +
+        '<td>' + c.peso + ' kg</td><td>' + c.color + '</td><td>' + (c.observaciones||"—") + '</td>' +
+        '<td><span class="badge badge-primary">' + c.cliente_id + '</span></td>' +
+        '<td>' + (cmap[c.cliente_id]||"—") + '</td></tr>').join("");
+}
+
+function buscarCitasPorTipo() {
+  const tipo  = document.getElementById("cons-tipo-servicio").value;
+  const cmap  = Object.fromEntries(getClientes().map(c => [c.id, c.nombre]));
+  const camap = Object.fromEntries(getCaninos().map(c => [c.id, c.nombre]));
+  const todas = getCitas();
+  const res   = tipo ? todas.filter(c => c.tipo === tipo) : todas;
+  document.getElementById("cons-tipo-info").textContent =
+    tipo ? res.length + ' cita(s) de tipo "' + tipo + '"' : res.length + " cita(s) en total";
+  const tbody = document.getElementById("cons-tabla-por-tipo");
+  if (!res.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-row">No hay citas' + (tipo ? ' de tipo ' + tipo : '') + '.</td></tr>'; return;
+  }
+  tbody.innerHTML = res.map(c => {
+    const estadoClass = c.estado === "pendiente" ? "badge-warn" : c.estado === "confirmada" ? "badge-success" : "badge-danger";
+    return '<tr>' +
+      '<td><span class="badge badge-primary">' + c.id + '</span></td>' +
+      '<td>' + (cmap[c.cliente_id]||c.cliente_id) + '</td>' +
+      '<td>' + (camap[c.canino_id]||c.canino_id) + '</td>' +
+      '<td><span class="tipo-badge tipo-' + c.tipo.toLowerCase() + '">' + c.tipo + '</span></td>' +
+      '<td>' + c.fecha + '</td>' +
+      '<td>' + (c.nota||"—") + '</td>' +
+      '<td><span class="badge ' + estadoClass + '">' + c.estado + '</span></td></tr>';
+  }).join("");
 }
 
 function buscarCaninoPorCliente() {
